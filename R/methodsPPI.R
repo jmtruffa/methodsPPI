@@ -368,7 +368,6 @@ getPPIDLR = function(from = "2014-05-27", to = Sys.Date()) {
   }
 }
 
-
 getPPIDLR2 = function(ticker = "GD30", type = "BONOS") {
   require(methodsPPI)
   require(lubridate)
@@ -412,8 +411,6 @@ getPPIDLR2 = function(ticker = "GD30", type = "BONOS") {
 
 }
 
-
-
 getPPIBook = function(token, ticker, type, settlement = "INMEDIATA") {
   require(tidyverse)
   require(jsonlite)
@@ -449,4 +446,75 @@ getPPIBook = function(token, ticker, type, settlement = "INMEDIATA") {
     rbind(bids, offers))
 }
 
+getPPICurrentRofex = function() {
+  #para pegarle a la API
+  require(methodsPPI)
+  require(dplyr)
+  require(ggplot2)
 
+  #para el grafico
+  require(scales)
+  require(tidyquant)
+  library(ggrepel)
+
+  secuencia = function (serie) {
+    require(lubridate)
+    ret = NULL
+    end = Date()
+    meses = c("ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC")
+    for (i in seq_along(serie)) {
+      ret = append(ret, paste0("DLR/",meses[lubridate::month(as.Date(serie[i]))], substr(lubridate::year(as.Date(serie[i])), 3, 4)))
+      end = append(end, lubridate::ceiling_date(as.Date(serie[i]), unit = "month") - 1)
+    }
+    ret = tibble(futuro = ret, vto = end)
+    ret
+  }
+  serie = seq.Date(from = Sys.Date(), length.out = 12, by = "months")
+  tira = secuencia(seq.Date(from = Sys.Date(), length.out = 12, by = "months"))
+
+  PPI = getPPILogin2()
+
+  fut = NULL
+  for (vto in tira$futuro) {
+    fut = append(fut, getPPIPrice(token = PPI$token,
+                                  ticker = vto,
+                                  type = "FUTUROS",
+                                  settlement = 'INMEDIATA')$price)
+  }
+  # llama el scraper en Go que baja de MAE el último operado
+  spot = as.numeric(system('~/dev/bin/maeScraper', intern = TRUE)[4])
+
+  futuros = as_tibble(cbind(cbind(tira, fut), spot))
+
+  futuros = futuros %>%
+    mutate(
+      tnaImplic = (fut / spot - 1) / (as.numeric(vto - Sys.Date()))*365,
+      orden = row_number(),
+      futuro = sub(".*/", "", futuro)
+    ) %>%
+    filter(fut != 0) #limpiamos si algun precio de futuro viene en 0
+
+  # establece los límites del eje Y del gráfico
+  limits = c(min(futuros$tnaImplic) * 0.5, max(futuros$tnaImplic) * 1.3)
+  gRofex = futuros %>%
+    ggplot(aes(x=reorder(futuro, +orden), y=tnaImplic)) +
+    geom_line(color = "cornflowerblue", group = 1) +
+    geom_point(color = "cornflowerblue") +
+    #scale_x_continuous(labels = scales::number_format(accuracy = 1),
+    #                 breaks=seq(1, 12, 1)) +
+    scale_y_continuous(breaks = breaks_extended(10),
+                       labels = scales::percent_format(accuracy = 0.1),
+                       limits = limits)+
+    labs(title = "Curva Rofex",
+         subtitle = paste0('En base a último operado: ',spot[1], '. Fecha: ', Sys.time()),
+         y = 'TNA',
+         x = 'Vencimiento',
+         caption = "Elaboración propia en base a precios Rofex provistos por PPI")+
+    theme_tq() +
+    theme( # remove the vertical grid lines
+      panel.grid.major.x = element_blank() ,
+      panel.grid.major.y = element_blank()) +
+    geom_text_repel(aes(label = scales::percent(tnaImplic, accuracy=0.01)))
+
+  return(list(futuros, gRofex))
+}
