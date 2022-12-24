@@ -446,7 +446,7 @@ getPPIBook = function(token, ticker, type, settlement = "INMEDIATA") {
     rbind(bids, offers))
 }
 
-getPPICurrentRofex = function() {
+getPPICurrentRofex = function(db) {
   #para pegarle a la API
   require(methodsPPI)
   require(dplyr)
@@ -455,7 +455,14 @@ getPPICurrentRofex = function() {
   #para el grafico
   require(scales)
   require(tidyquant)
-  library(ggrepel)
+  require(ggrepel)
+  require(tibble)
+  require(functions)
+  require(bizdays)
+
+  ## db = '~/Google\\ Drive/Mi\\ unidad/data/test.sqlite3' mac
+  ## db = 'data/'
+  cal = create.calendar('Argentina/test', getFeriados(db), weekdays=c("saturday", "sunday"))
 
   secuencia = function (serie) {
     require(lubridate)
@@ -464,7 +471,10 @@ getPPICurrentRofex = function() {
     meses = c("ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC")
     for (i in seq_along(serie)) {
       ret = append(ret, paste0("DLR/",meses[lubridate::month(as.Date(serie[i]))], substr(lubridate::year(as.Date(serie[i])), 3, 4)))
-      end = append(end, lubridate::ceiling_date(as.Date(serie[i]), unit = "month") - 1)
+      finMes = lubridate::ceiling_date(as.Date(serie[i]), unit = "month") - 1
+      offset = ifelse(bizdays::is.bizday(finMes, cal = 'Argentina/test'), 0, -1)
+      finMesAjustado = bizdays::offset(finMes, offset, cal = 'Argentina/test')
+      end = append(end, finMesAjustado)
     }
     ret = tibble(futuro = ret, vto = end)
     ret
@@ -482,7 +492,14 @@ getPPICurrentRofex = function() {
                                   settlement = 'INMEDIATA')$price)
   }
   # llama el scraper en Go que baja de MAE el último operado
-  spot = as.numeric(system('~/dev/bin/maeScraper', intern = TRUE)[4])
+  if (str_detect(Sys.info()['nodename'], "Air")) {
+    scraper = '~/Google\\ Drive/Mi\\ unidad/analisis\\ financieros/functions/data/bin/maeScraper'
+    spot = as.numeric(system(scraper, intern = TRUE))
+  } else {
+    scraper = '~/dev/bin/maeScraper'
+    spot = as.numeric(system(scraper, intern = TRUE)[4])
+  }
+
 
   futuros = as_tibble(cbind(cbind(tira, fut), spot))
 
