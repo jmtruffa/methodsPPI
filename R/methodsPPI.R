@@ -416,7 +416,7 @@ getPPIBook = function(token, ticker, type, settlement = "INMEDIATA") {
   require(jsonlite)
   require(httr2)
 
-  # Esto es para probar la funcion de manera directa
+  ##Esto es para probar la funcion de manera directa
   # token = PPI$token
   # settlement = "INMEDIATA"
   # ticker ="GD30C"
@@ -435,18 +435,34 @@ getPPIBook = function(token, ticker, type, settlement = "INMEDIATA") {
     req_url_query(Ticker = ticker, Type = type, Settlement = settlement) %>%
     req_perform()
   body = fromJSON(rawToChar(rBook$body))
-  date = body$date
-  bids = tibble(cbind(SIDE = rep("BID", length(body$bids$position)),(body$bids)))
-  offers = tibble(cbind(SIDE = rep("OFFER", length(body$offers$position)),(body$offers)))
+  if (!length(body$offers) == 0) {
+    date = body$date
+    bids = tibble(cbind(SIDE = rep("BID", length(body$bids$position)),(body$bids)))
+    offers = tibble(cbind(SIDE = rep("OFFER", length(body$offers$position)),(body$offers)))
   #returnValue = tibble(rbind(cbind(date = rep(date, length(bids$SIDE)), bids),
   #                           cbind(date = rep(date, length(bids$SIDE)), offers) ))
-  returnValue = cbind(
-    date = as.Date(rep(date, length(bids$position) + length(offers$position))),
-    ticker = rep(ticker, length(bids$position) + length(offers$position)),
-    rbind(bids, offers))
+    returnValue = cbind(
+      date = as.Date(rep(date, length(bids$position) + length(offers$position))),
+      ticker = rep(ticker, length(bids$position) + length(offers$position)),
+      rbind(bids, offers))
+  } else {
+    date = body$date
+    bids = tibble(SIDE = rep("BID", 1),
+                  position = 0,
+                  price = 0,
+                  quantity = 0)
+    offers = tibble(SIDE = rep("OFFER", 1),
+                    position = 0,
+                    price = 0,
+                    quantity = 0)
+    returnValue = cbind(
+      date = as.Date(date),
+      ticker = rep(ticker, 1),
+      rbind(bids, offers))
+  }
 }
 
-getPPICurrentRofex = function(db) {
+getPPICurrentRofex = function(db = "") {
   #para pegarle a la API
   require(methodsPPI)
   require(dplyr)
@@ -459,6 +475,13 @@ getPPICurrentRofex = function(db) {
   require(tibble)
   require(functions)
   require(bizdays)
+  if (db == "") {
+    if (str_detect(Sys.info()['nodename'], "Air")) {
+      db = "~/GoogleDrive/Mi unidad/data/test.sqlite3"
+    } else {
+      db = '/data/test.sqlite3'
+    }
+  }
 
   ## db = '~/Google\\ Drive/Mi\\ unidad/data/test.sqlite3' mac
   ## db = 'data/'
