@@ -116,6 +116,69 @@ getPPIPrice = function(token, ticker, type, settlement = "INMEDIATA") {
   returnValue
 }
 
+getPPIPrice2 = function(token, ticker, type, settlement = "INMEDIATA") {
+  require(tidyverse)
+  require(jsonlite)
+  require(httr2)
+  url = 'https://clientapi.portfoliopersonal.com/api/1.0/'
+  urlMarketData = 'MarketData/Current'
+  result = tibble(
+    ticker = character(),
+    date = Date(),
+    price = numeric()
+  )
+  fail = tibble(
+    ticker = character()
+  )
+
+  for (i in 1:length(ticker)) {
+    error = FALSE
+    tryCatch(
+      {
+        rPrice = request(paste0(url, urlMarketData)) %>%
+          req_headers(Authorization = token,
+                      AuthorizedClient = 'API-CLI',
+                      ClientKey = 'pp19CliApp12',
+                      `User-Agent` = "http://github.com/jmtruffa") %>%
+          req_url_query(ticker = ticker[i],
+                        type = type[i],
+                        settlement = settlement) %>%
+          req_method("GET") %>%
+          req_perform } ,
+      error = function(e) { error <<- TRUE; fail <<- fail %>% add_row(ticker = ticker[i]);print(ticker[i]) }
+    )
+
+    if (!error) {
+      history = fromJSON(rawToChar(rPrice$body))
+      #history = do.call(rbind.data.frame, history) #Cambiaron la forma de devolver?
+      history$date = as.Date(history$date)
+      result = result %>% add_row(
+        ticker = ticker[i],
+        date = history$date,
+        price = history$price
+      )
+      #result = rbind(result, as_tibble(cbind(ticker = rep(ticker[i], length(history$date)), history)))
+    }
+  }
+  return(list(result, fail))
+
+
+  # rPrice = request(paste0(url, urlMarketData)) %>%
+  #   req_headers(Authorization = token,
+  #               AuthorizedClient = 'API-CLI',
+  #               ClientKey = 'pp19CliApp12',
+  #               `User-Agent` = "http://github.com/jmtruffa"
+  #   ) %>%
+  #   req_method("GET") %>%
+  #   req_url_query(Ticker = ticker, Type = type, Settlement = settlement) %>%
+  #   req_perform()
+  # date = fromJSON(rawToChar(rPrice$body))$date
+  # price = fromJSON(rawToChar(rPrice$body))$price
+  # returnValue = list(date = date,
+  #                    price = price)
+  # returnValue
+}
+
 getPPIPriceHistoryMultiple2 = function(token, ticker, type, from, to, settlement = "INMEDIATA") {
   url = 'https://clientapi.portfoliopersonal.com/api/1.0/'
   URLPriceHistory = "MarketData/Search"
