@@ -525,6 +525,72 @@ getPPIBook = function(token, ticker, type, settlement = "INMEDIATA") {
   }
 }
 
+getPPIBook2 = function(ticker, type, token,settlement = "INMEDIATA") {
+  ### devuelve vacío cuando un ticker falla. Normalmente puede fallar porque consulto un ticker viejo
+  require(tidyverse)
+  require(jsonlite)
+  require(httr2)
+  # print(ticker)
+  # print(type)
+  # print(token)
+
+  ##Esto es para probar la funcion de manera directa
+  # token = PPI$token
+  # settlement = "INMEDIATA"
+  # ticker ="S16D2"
+  # type = "BONOS"
+
+  url = 'https://clientapi.portfoliopersonal.com/api/1.0/'
+  urlMarketData = 'MarketData/Book'
+
+  fail = tibble(
+    ticker = character()
+  )
+  error = FALSE
+  tryCatch(
+    {
+      rBook = request(paste0(url, urlMarketData)) %>%
+        req_headers(Authorization = token,
+                    AuthorizedClient = 'API-CLI',
+                    ClientKey = 'pp19CliApp12',
+                    `User-Agent` = "http://github.com/jmtruffa"
+        ) %>%
+        req_method("GET") %>%
+        req_url_query(Ticker = ticker, Type = type, Settlement = settlement) %>%
+        req_perform()
+
+      body = fromJSON(rawToChar(rBook$body))
+    },
+    error = function(e) { error <<- TRUE; fail <<- fail %>% add_row(ticker = ticker) }
+  )
+
+  if (!length(body$offers) == 0) {
+    date = body$date
+    bids = tibble(cbind(SIDE = rep("BID", length(body$bids$position)),(body$bids)))
+    offers = tibble(cbind(SIDE = rep("OFFER", length(body$offers$position)),(body$offers)))
+    #returnValue = tibble(rbind(cbind(date = rep(date, length(bids$SIDE)), bids),
+    #                           cbind(date = rep(date, length(bids$SIDE)), offers) ))
+    returnValue = cbind(
+      date = as.Date(rep(date, length(bids$position) + length(offers$position))),
+      ticker = rep(ticker, length(bids$position) + length(offers$position)),
+      rbind(bids, offers))
+  } else { ### Acá viene tanto el offer no exista o bien haya salido por error
+    date = body$date
+    bids = tibble(SIDE = rep("BID", 1),
+                  position = 0,
+                  price = 0,
+                  quantity = 0)
+    offers = tibble(SIDE = rep("OFFER", 1),
+                    position = 0,
+                    price = 0,
+                    quantity = 0)
+    returnValue = cbind(
+      date = as.Date(date),
+      ticker = rep(ticker, 1),
+      rbind(bids, offers))
+  }
+}
+
 getPPICurrentRofex = function(db = "") {
   #para pegarle a la API
   require(methodsPPI)
@@ -620,4 +686,78 @@ getPPICurrentRofex = function(db = "") {
     geom_text_repel(aes(label = scales::percent(tnaImplic, accuracy=0.01)))
 
   return(list(futuros, gRofex))
+}
+
+getPPIFullBook = function (instrumentos, settlement = "A-48HS", endpoint = "yield", fee = tibble(
+  letras = 0.003515,
+  bonos = 0.01
+)) {
+
+  require(functions)
+  require(tidyverse)
+  require(purrr)
+  require(methodsPPI)
+
+  tmpCalendar <- create.calendar('tmpCalendar', holidays = getFeriados(), weekdays = c('saturday','sunday'))
+
+  PPI = getPPILogin2()
+  settlement = settlement
+
+  # fee = tibble(
+  #   letras = 0.003515,
+  #   bonos = 0.01
+  # )
+
+  tickers = map_dfr(
+    instrumentos,
+    sets
+  )
+
+
+  book = pmap_dfr(
+    list(
+      tickers$ticker,
+      tickers$type,
+      PPI$token,
+      settlement
+    ),
+    getPPIBook2
+  )
+
+  ### Le agrego el fee según tipo de instrumento
+  book = book %>%
+    left_join(tickers) %>%
+    mutate(
+      fee = ifelse(type == "LETRAS", fee$letras, fee$bonos)
+    )
+
+  ### Ahora tengo que filtrar los que tienen BID/OFFER en cero
+  ### y luego pegarle a getYields para que me traiga los precios
+  ### debería llenar con endpoint = apr / yield en función del tipo de instrumento
+  ### pero inicialmente voy a pegar todo a yield
+
+  book = book %>%
+    group_by(ticker, SIDE) %>% ## Con esto hasta antes de filter freno los precios raros
+    mutate(
+      price = case_when(
+        is.na(lag(price)) ~ price,
+        (price / lag(price) - 1) > 0.05 ~ 0,
+        TRUE ~ price,
+      )
+    ) %>%
+    filter(price != 0)
+
+  yields = pmap_dfr(
+    list(
+      book$ticker,
+      as.character(bizdays::offset(Sys.Date(), ifelse(settlement == "INMEDIATA", 0, 2), cal = tmpCalendar)),
+      book$price,
+      book$fee
+    ),
+    getYields,
+    endpoint = endpoint
+  )
+
+  ### ahora debería juntar los df
+  fullBook = cbind(book, yields) %>% select(-endingFee, -initialFee, -letras, -precios)
 }
