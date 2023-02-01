@@ -530,6 +530,7 @@ getPPIBook2 = function(ticker, type, token,settlement = "INMEDIATA") {
   require(tidyverse)
   require(jsonlite)
   require(httr2)
+  require(lubridate)
   # print(ticker)
   # print(type)
   # print(token)
@@ -538,13 +539,19 @@ getPPIBook2 = function(ticker, type, token,settlement = "INMEDIATA") {
   # token = PPI$token
   # settlement = "INMEDIATA"
   # ticker ="S16D2"
-  # type = "BONOS"
+  # type = "LETRAS"
 
   url = 'https://clientapi.portfoliopersonal.com/api/1.0/'
   urlMarketData = 'MarketData/Book'
 
   fail = tibble(
     ticker = character()
+  )
+  responseBody = tibble(
+    date = Date(),
+    bids = numeric(),
+    offers = numeric()
+
   )
   error = FALSE
   tryCatch(
@@ -559,15 +566,15 @@ getPPIBook2 = function(ticker, type, token,settlement = "INMEDIATA") {
         req_url_query(Ticker = ticker, Type = type, Settlement = settlement) %>%
         req_perform()
 
-      body = fromJSON(rawToChar(rBook$body))
+      responseBody = fromJSON(rawToChar(rBook$body))
     },
     error = function(e) { error <<- TRUE; fail <<- fail %>% add_row(ticker = ticker) }
   )
 
-  if (!length(body$offers) == 0) {
-    date = body$date
-    bids = tibble(cbind(SIDE = rep("BID", length(body$bids$position)),(body$bids)))
-    offers = tibble(cbind(SIDE = rep("OFFER", length(body$offers$position)),(body$offers)))
+  if (!length(responseBody$offers) == 0) {
+    date = responseBody$date
+    bids = tibble(cbind(SIDE = rep("BID", length(responseBody$bids$position)),(responseBody$bids)))
+    offers = tibble(cbind(SIDE = rep("OFFER", length(responseBody$offers$position)),(responseBody$offers)))
     #returnValue = tibble(rbind(cbind(date = rep(date, length(bids$SIDE)), bids),
     #                           cbind(date = rep(date, length(bids$SIDE)), offers) ))
     returnValue = cbind(
@@ -575,7 +582,7 @@ getPPIBook2 = function(ticker, type, token,settlement = "INMEDIATA") {
       ticker = rep(ticker, length(bids$position) + length(offers$position)),
       rbind(bids, offers))
   } else { ### Acá viene tanto el offer no exista o bien haya salido por error
-    date = body$date
+    date = Sys.Date()
     bids = tibble(SIDE = rep("BID", 1),
                   position = 0,
                   price = 0,
@@ -697,6 +704,7 @@ getPPIFullBook = function (instrumentos, settlement = "A-48HS", endpoint = "yiel
   require(tidyverse)
   require(purrr)
   require(methodsPPI)
+  require(bizdays)
 
   tmpCalendar <- create.calendar('tmpCalendar', holidays = getFeriados(), weekdays = c('saturday','sunday'))
 
