@@ -1,10 +1,19 @@
-sets = function(set) {
-  require(DBI)
+sets = function(set, db = "") {
   require(dplyr)
   require(dbplyr)
+
+  if (db == "") {
+    if (stringr::str_detect(Sys.info()['nodename'], "Air")) {
+      db = "~/GoogleDrive/Mi unidad/data/test.sqlite3"
+    } else {
+      db = '/data/test.sqlite3'
+    }
+  }
+
+
   if (set != '') {
 
-    con = dbConnect(RSQLite::SQLite(), "~/Google Drive/Mi unidad/data/test.sqlite3")
+    con = DBI::dbConnect(RSQLite::SQLite(), dbname = db)
     res = as_tibble(tbl(con, "sets") %>%
                       filter(nombre == set) %>%
                       select(ticker, type)
@@ -13,6 +22,7 @@ sets = function(set) {
   } else {
     stop("Set no puede ser NULL")
   }
-  dbDisconnect(con)
+  DBI::dbDisconnect(con)
   res
 }
+
