@@ -4,9 +4,9 @@ sets = function(set, db = "") {
 
   if (db == "") {
     if (stringr::str_detect(Sys.info()['nodename'], "Air")) {
-      db = "~/GoogleDrive/Mi unidad/data/test.sqlite3"
+      db = "~/data/test.sqlite3"
     } else {
-      db = '/data/test.sqlite3'
+      db = '~/data/test.sqlite3'
     }
   }
 

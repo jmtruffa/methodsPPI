@@ -611,16 +611,16 @@ getPPICurrentRofex = function(db = "") {
   require(tibble)
   require(functions)
   require(bizdays)
+  ### esto podrà ser modificado en breve ya que todo apunta a ~/data
   if (db == "") {
     if (str_detect(Sys.info()['nodename'], "Air")) {
-      db = "~/GoogleDrive/Mi unidad/data/test.sqlite3"
+      db = "~/data/test.sqlite3"
     } else {
-      db = '/data/test.sqlite3'
+      db = '~/data/test.sqlite3'
     }
   }
 
-  ## db = '~/Google\\ Drive/Mi\\ unidad/data/test.sqlite3' mac
-  ## db = 'data/'
+
   cal = create.calendar('Argentina/test', getFeriados(db), weekdays=c("saturday", "sunday"))
 
   secuencia = function (serie) {
