@@ -309,12 +309,13 @@ getPPIPriceHistoryMultiple = function(token, ticker, type, from, to, settlement 
   result
 }
 
-getPPIDLR = function(from = "2014-05-27", to = Sys.Date()) {
+getPPIDLR = function(from = "2014-05-27", to = Sys.Date(), settlement = 't+0') {
   require(tidyverse)
   require(scales)
   require(ggthemes)
   require(tidyquant)
   require(lubridate)
+  require(methodsPPI)
 
   if (from >= "2014-05-27") {
       juntar = FALSE
@@ -360,7 +361,7 @@ getPPIDLR = function(from = "2014-05-27", to = Sys.Date()) {
       }
 
     PPI = getPPILogin2()
-    settlement = 'INMEDIATA'
+    settlement = ifelse(settlement == 't+0', "INMEDIATA", "A-48HS")
     tickers = c('AL30', 'GD30C', 'AL30D', 'GD30', 'GD30D')
     type = rep('BONOS', length(tickers))
 
