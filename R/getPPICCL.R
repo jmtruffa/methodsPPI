@@ -4,11 +4,11 @@
 #'
 #' @param from  Fecha desde. Default hoy
 #' @param to Fecha hasta. Default hoy
-#' @param via Nombre CEDEAR a usar. Default AAPL, AAPLD. Primero en pesos.
+#' @param via Nombre CEDEAR a usar. Default AAPL, AAPLC. Primero en pesos.
 #'
 #' @return Un tibble con el ccl
 #'
-getPPICCL = function(from = Sys.Date(), to = Sys.Date(), via = c("AAPL", "AAPLD")) {
+getPPICCL = function(from = Sys.Date(), to = Sys.Date(), via = c("AAPL", "AAPLC")) {
   require(methodsPPI)
   PPI = getPPILogin2()
   prices = getPPIPriceHistoryMultiple3(token = PPI$token,
