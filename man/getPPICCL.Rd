@@ -4,18 +4,31 @@
 \alias{getPPICCL}
 \title{getPPICCL}
 \usage{
-getPPICCL(from = Sys.Date(), to = Sys.Date(), via = c("AAPL", "AAPLD"))
+getPPICCL(
+  from = Sys.Date(),
+  to = Sys.Date(),
+  via = "AAPL",
+  type = "CEDEARS",
+  settle = "A-48HS"
+)
 }
 \arguments{
 \item{from}{Fecha desde. Default hoy}
 
 \item{to}{Fecha hasta. Default hoy}
 
-\item{via}{Nombre CEDEAR a usar. Default AAPL, AAPLD. Primero en pesos.}
+\item{via}{Nombre activo a usar.}
+
+\item{type}{CEDEARS, ACCIONES o BONOS}
+
+\item{settle}{Settlement. t+2 o t+0}
 }
 \value{
 Un tibble con el ccl
 }
 \description{
-Devuelve el CCL a través de CEDEARs en PPI
+Devuelve el CCL a través de CEDEARs, Bonos o Acciones (y ADRs).
+Si es Bonos, consulta a la API de PPI por el precio del bono en cuestión agregándole una C para el precio Cable.
+Si es CEDEAR o ACCIONES, consulta las tablas de ratiosCedear o ratiosADR que está en db:test  y, con los ratio de allí
+obtenidos, calcula el CCL:
 }
