@@ -6,10 +6,10 @@
 \usage{
 getPPICCL(
   from = Sys.Date(),
-  to = Sys.Date(),
+  to = Sys.Date() + 1,
   via = "AAPL",
   type = "CEDEARS",
-  settle = "A-48HS"
+  settle = "T+2"
 )
 }
 \arguments{

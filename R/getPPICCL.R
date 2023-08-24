@@ -14,7 +14,7 @@
 #'
 #' @return Un tibble con el ccl
 #'
-getPPICCL = function(from = Sys.Date(), to = Sys.Date(), via = "AAPL", type = "CEDEARS", settle = "A-48HS") {
+getPPICCL = function(from = Sys.Date(), to = Sys.Date() + 1, via = "AAPL", type = "CEDEARS", settle = "T+2") {
   require(methodsPPI)
   require(tidyquant)
   require(dplyr)
@@ -22,7 +22,7 @@ getPPICCL = function(from = Sys.Date(), to = Sys.Date(), via = "AAPL", type = "C
   df = data.frame()
   via = toupper(via)
   type = toupper(type)
-  settle = ifelse(settle == toupper(t+2), "A-48HS", "INMEDIATA")
+  settle = ifelse(toupper(settle) == "T+2", "A-48HS", "INMEDIATA")
   ratio = 1
 
   if (type %in% c("CEDEARS", "ACCIONES", "BONOS")) {
@@ -59,7 +59,7 @@ getPPICCL = function(from = Sys.Date(), to = Sys.Date(), via = "AAPL", type = "C
       # Busco el de exterior
       ext = tidyquant::tq_get(via,
                               from = from,
-                              to = to) %>% select(date, ticker = symbol, price = adjusted)
+                              to = to) %>% dplyr::select(date, ticker = symbol, price = adjusted)
 
       # Busco el local
       PPI = methodsPPI::getPPILogin2()
@@ -67,7 +67,7 @@ getPPICCL = function(from = Sys.Date(), to = Sys.Date(), via = "AAPL", type = "C
                                                        ticker = via,
                                                        type = type,
                                                        from = from,
-                                                       to = to,
+                                                       to = min(to, Sys.Date()),
                                                        settlement = settle)[[1]][c(1:3)]
       df = left_join(ext, prices, join_by(date, ticker))
       df$CCL = (df$price.y * ratio) / df$price.x

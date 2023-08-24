@@ -599,7 +599,17 @@ getPPIBook2 = function(ticker, type, token,settlement = "INMEDIATA") {
   }
 }
 
-getPPICurrentRofex = function(db = "") {
+
+#' getPPICurrentRofex
+#'
+#' Trae la curva de Rofex desde BYMA (via PPI) y calcula implícitas
+#' Toma el spot de la web de MAE. Si se le informa uno en spt, toma ese.
+#'
+#' @param spt Spot para usar. Overrides el de MAE. Si no se pone nada y MAE no lo tiene devuelve error.
+#' @param db Base donde va a buscar los feriados. Default es test.
+#'
+#' @return una lista con un df con los futuros y un gráfico con las implícitas
+getPPICurrentRofex = function(db = "", spt = NULL) {
   #para pegarle a la API
   require(methodsPPI)
   require(dplyr)
@@ -612,6 +622,7 @@ getPPICurrentRofex = function(db = "") {
   require(tibble)
   require(functions)
   require(bizdays)
+  require(stringr)
   ### esto podrà ser modificado en breve ya que todo apunta a ~/data
   if (db == "") {
     if (str_detect(Sys.info()['nodename'], "Air")) {
@@ -651,13 +662,18 @@ getPPICurrentRofex = function(db = "") {
                                   type = "FUTUROS",
                                   settlement = 'INMEDIATA')$price)
   }
-  # llama el scraper en Go que baja de MAE el último operado
-  if (str_detect(Sys.info()['nodename'], "Air")) {
-    scraper = '~/Google\\ Drive/Mi\\ unidad/analisis\\ financieros/functions/data/bin/maeScraper'
-    spot = as.numeric(system(scraper, intern = TRUE))
+  # llama el scraper en Go que baja de MAE el último operado si es que no hay parámetro SPOT
+  # esto permite que SI SE LE PASA PARAMETRO, quiere decir que fallaba y lo fuerza calculando contra ese
+  if (is.null(spt)) {
+    if (str_detect(Sys.info()['nodename'], "Air")) {
+      scraper = '~/Google\\ Drive/Mi\\ unidad/analisis\\ financieros/functions/data/bin/maeScraper'
+      spot = as.numeric(system(scraper, intern = TRUE))
+    } else {
+      scraper = '~/dev/bin/maeScraper'
+      spot = as.numeric(system(scraper, intern = TRUE)[4])
+    }
   } else {
-    scraper = '~/dev/bin/maeScraper'
-    spot = as.numeric(system(scraper, intern = TRUE)[4])
+    spot = spt
   }
 
 
@@ -666,32 +682,43 @@ getPPICurrentRofex = function(db = "") {
   futuros = futuros %>%
     mutate(
       tnaImplic = (fut / spot - 1) / (as.numeric(vto - Sys.Date()))*365,
+      teaImplic = (fut / spot) ^ (365 / (as.numeric(vto - Sys.Date()))) - 1,
       orden = row_number(),
       futuro = sub(".*/", "", futuro)
     ) %>%
     filter(fut != 0) #limpiamos si algun precio de futuro viene en 0
 
   # establece los límites del eje Y del gráfico
-  limits = c(min(futuros$tnaImplic) * 0.5, max(futuros$tnaImplic) * 1.3)
+  limits = c(min(futuros$teaImplic) * 0.5, max(futuros$teaImplic) * 1.3)
   gRofex = futuros %>%
-    ggplot(aes(x=reorder(futuro, +orden), y=tnaImplic)) +
-    geom_line(color = "cornflowerblue", group = 1) +
-    geom_point(color = "cornflowerblue") +
+    ggplot(aes(x=reorder(futuro, +orden))) +
+    geom_line(aes(y=tnaImplic, color = "cornflowerblue"), group = 1) +
+    geom_line(aes(y=teaImplic, color = "#054D41"), group = 1) +
+    geom_point(aes(y=tnaImplic, color = "cornflowerblue")) +
+    geom_point(aes(y=teaImplic, color = "#054D41")) +
     #scale_x_continuous(labels = scales::number_format(accuracy = 1),
     #                 breaks=seq(1, 12, 1)) +
     scale_y_continuous(breaks = breaks_extended(10),
                        labels = scales::percent_format(accuracy = 0.1),
                        limits = limits)+
+    scale_color_manual(name = "",
+                       values = c("#054D41", "cornflowerblue"),
+                       label = c("TEA", "TNA")) +
     labs(title = "Curva Rofex",
-         subtitle = paste0('En base a último operado: ',spot[1], '. Fecha: ', Sys.time()),
-         y = 'TNA',
+         subtitle = paste0('En base a último operado: ',spot[1], '. Fecha: ', format(Sys.time(), format = "%H:%M:%S")),
+         y = 'TNA y TEA',
          x = 'Vencimiento',
-         caption = "Elaboración propia en base a precios Rofex provistos por PPI")+
+         caption = "Elaboración propia en base a precios Rofex")+
     theme_tq() +
     theme( # remove the vertical grid lines
       panel.grid.major.x = element_blank() ,
       panel.grid.major.y = element_blank()) +
-    geom_text_repel(aes(label = scales::percent(tnaImplic, accuracy=0.01)))
+    geom_text_repel(data = futuros %>% select(futuro, tnaImplic),
+                    aes(x = futuro, y=tnaImplic, label = scales::percent(tnaImplic, accuracy=0.01)),
+                    nudge_x = 0.25, nudge_y = -0.05) +
+    geom_text_repel(data = futuros %>% select(futuro, teaImplic),
+                    aes(x = futuro, y=teaImplic, label = scales::percent(teaImplic, accuracy=0.01)),
+                    nudge_y = 0.15, color = "#054D41")
 
   return(list(futuros, gRofex))
 }
