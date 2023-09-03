@@ -57,18 +57,22 @@ getPPICCL = function(from = Sys.Date(), to = Sys.Date() + 1, via = "AAPL", type 
       DBI::dbDisconnect(con)
 
       # Busco el de exterior
+
       ext = tidyquant::tq_get(via,
                               from = from,
                               to = to) %>% dplyr::select(date, ticker = symbol, price = adjusted)
 
+
       # Busco el local
       PPI = methodsPPI::getPPILogin2()
+
       prices = methodsPPI::getPPIPriceHistoryMultiple3(token = PPI$token,
                                                        ticker = via,
                                                        type = type,
                                                        from = from,
-                                                       to = min(to, Sys.Date()),
+                                                       to = to,
                                                        settlement = settle)[[1]][c(1:3)]
+
       df = left_join(ext, prices, join_by(date, ticker))
       df$CCL = (df$price.y * ratio) / df$price.x
       df = df[c(1,5)]

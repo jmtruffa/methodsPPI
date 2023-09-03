@@ -609,7 +609,7 @@ getPPIBook2 = function(ticker, type, token,settlement = "INMEDIATA") {
 #' @param db Base donde va a buscar los feriados. Default es test.
 #'
 #' @return una lista con un df con los futuros y un gráfico con las implícitas
-getPPICurrentRofex = function(db = "", spt = NULL) {
+getPPICurrentRofex = function(db = "", spt = NULL, prevDay = Sys.Date() - 1) {
   #para pegarle a la API
   require(methodsPPI)
   require(dplyr)
@@ -633,7 +633,7 @@ getPPICurrentRofex = function(db = "", spt = NULL) {
   }
 
 
-  cal = create.calendar('Argentina/test', getFeriados(db), weekdays=c("saturday", "sunday"))
+  cal = create.calendar('tempCal', getFeriados(db), weekdays=c("saturday", "sunday"))
 
   secuencia = function (serie) {
     require(lubridate)
@@ -650,8 +650,8 @@ getPPICurrentRofex = function(db = "", spt = NULL) {
     ret = tibble(futuro = ret, vto = end)
     ret
   }
-  serie = seq.Date(from = Sys.Date(), length.out = 12, by = "months")
-  tira = secuencia(seq.Date(from = Sys.Date(), length.out = 12, by = "months"))
+  #serie = seq.Date(from = Sys.Date(), length.out = 12, by = "months")
+  tira = secuencia(seq.Date(from = as.Date(lubridate::floor_date(Sys.Date(), unit = "month")), length.out = 12, by = "months"))
 
   PPI = getPPILogin2()
 
@@ -684,41 +684,79 @@ getPPICurrentRofex = function(db = "", spt = NULL) {
       tnaImplic = (fut / spot - 1) / (as.numeric(vto - Sys.Date()))*365,
       teaImplic = (fut / spot) ^ (365 / (as.numeric(vto - Sys.Date()))) - 1,
       orden = row_number(),
+      pase = ifelse(
+        orden == 1, fut / spot - 1, fut / lag(fut) - 1
+      ),
       futuro = sub(".*/", "", futuro)
     ) %>%
     filter(fut != 0) #limpiamos si algun precio de futuro viene en 0
 
+  # Ahora traer los futuros del día anterior
+  prevDay = bizdays::adjust.previous(Sys.Date() - 1, cal = cal)
+  prevFuturos = getRofexPosition(from = prevDay, to = prevDay)[[1]]
+  prevFuturos = prevFuturos[c(2,3,21,18,15,14)]
+  futuros = left_join(futuros, prevFuturos, join_by(orden == pos))
+
+  #agrego los PASES del día anterior (salvo la 1era)
+
+  futuros = futuros %>%
+    mutate(paseAnt = (settlement / lag(settlement)) - 1 )
+
+
   # establece los límites del eje Y del gráfico
-  limits = c(min(futuros$teaImplic) * 0.5, max(futuros$teaImplic) * 1.3)
+  #limits = c(min(futuros$teaImplic, futuros$implie) * 0.5, max(futuros$teaImplic) * 1.3)
+
+  coeff = mean(futuros$teaImplic) / mean(futuros$pase)*.5
+  futuros = futuros %>% mutate(nombre = paste0(futuro," (", fut, ")"))
+
   gRofex = futuros %>%
-    ggplot(aes(x=reorder(futuro, +orden))) +
+    ggplot(aes(x=reorder(nombre, +orden), linetype = )) +
+
+    geom_col(aes(y=pase * coeff, fill = "darkgrey")) +
+    geom_col(aes(y=pase * coeff, fill = "darkgrey")) +
+
+
     geom_line(aes(y=tnaImplic, color = "cornflowerblue"), group = 1) +
-    geom_line(aes(y=teaImplic, color = "#054D41"), group = 1) +
+    geom_line(aes(y=teaImplic, color = "#0f4114"), group = 1) +
+
+    # esta es la anterior
+    geom_line(aes(y=impliedRateTNA, color = "cornflowerblue"), group = 2, linetype = "dashed") +
+    geom_line(aes(y=impliedRateTEA, color = "#0f4114"), group = 2, linetype = "dashed") +
+
+
     geom_point(aes(y=tnaImplic, color = "cornflowerblue")) +
-    geom_point(aes(y=teaImplic, color = "#054D41")) +
-    #scale_x_continuous(labels = scales::number_format(accuracy = 1),
-    #                 breaks=seq(1, 12, 1)) +
+    geom_point(aes(y=teaImplic, color = "#0f4114")) +
+
     scale_y_continuous(breaks = breaks_extended(10),
-                       labels = scales::percent_format(accuracy = 0.1),
-                       limits = limits)+
+                       labels = scales::percent_format(),
+                       #limits = limits,
+                       sec.axis = sec_axis(
+                         ~ . / coeff,
+                         name = "PASE",
+                         breaks = breaks_extended(10),
+                         labels = scales::percent)) +
     scale_color_manual(name = "",
-                       values = c("#054D41", "cornflowerblue"),
-                       label = c("TEA", "TNA")) +
-    labs(title = "Curva Rofex",
-         subtitle = paste0('En base a último operado: ',spot[1], '. Fecha: ', format(Sys.time(), format = "%H:%M:%S")),
+                       values = c("#0f4114", "cornflowerblue", "blue"),
+                       label = c("TEA", "TNA", "Anterior")) +
+    scale_linetype_manual(values = c(1,1,2)) +
+    scale_fill_manual(name = "", values = "darkgrey", label = "PASE") +
+
+    labs(title = "Curva Futuros de Dólar",
+         subtitle = paste0('Línea punteada es t-1. En base a último operado: ',spot[1], '. Fecha: ', format(Sys.Date()-1, format = "%Y-%m-%d")),
          y = 'TNA y TEA',
-         x = 'Vencimiento',
-         caption = "Elaboración propia en base a precios Rofex")+
+         x = 'Vencimiento y valor de settlement',
+         caption = "Elaboración propia en base a precios MatbaRofex")+
     theme_tq() +
-    theme( # remove the vertical grid lines
-      panel.grid.major.x = element_blank() ,
+    theme( title = element_text(size=12, face='bold'),
+      #panel.grid.major.x = element_blank() ,
       panel.grid.major.y = element_blank()) +
-    geom_text_repel(data = futuros %>% select(futuro, tnaImplic),
-                    aes(x = futuro, y=tnaImplic, label = scales::percent(tnaImplic, accuracy=0.01)),
-                    nudge_x = 0.25, nudge_y = -0.05) +
-    geom_text_repel(data = futuros %>% select(futuro, teaImplic),
-                    aes(x = futuro, y=teaImplic, label = scales::percent(teaImplic, accuracy=0.01)),
-                    nudge_y = 0.15, color = "#054D41")
+
+    geom_text_repel(data = futuros %>% select(nombre, tnaImplic),
+                    aes(x = nombre, y=tnaImplic, label = scales::percent(tnaImplic, accuracy=0.01)),
+                    nudge_x = 0.25, nudge_y = -0.1) +
+    geom_text_repel(data = futuros %>% select(nombre, teaImplic),
+                    aes(x = nombre, y=teaImplic, label = scales::percent(teaImplic, accuracy=0.01)),
+                    nudge_y = 0.25, color = "#054D41")
 
   return(list(futuros, gRofex))
 }
