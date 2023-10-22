@@ -16,7 +16,7 @@ sets = function(set, db = "") {
     con = DBI::dbConnect(RSQLite::SQLite(), dbname = db)
     res = as_tibble(tbl(con, "sets") %>%
                       filter(nombre == set) %>%
-                      select(ticker, type)
+                      select(nombre, ticker, type)
     )
 
   } else {

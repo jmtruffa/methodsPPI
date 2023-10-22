@@ -4,12 +4,14 @@
 \alias{getPPICurrentRofex}
 \title{getPPICurrentRofex}
 \usage{
-getPPICurrentRofex(db = "", spt = NULL)
+getPPICurrentRofex(db = "", spt = NULL, prevDay = Sys.Date() - 1)
 }
 \arguments{
 \item{db}{Base donde va a buscar los feriados. Default es test.}
 
 \item{spt}{Spot para usar. Overrides el de MAE. Si no se pone nada y MAE no lo tiene devuelve error.}
+
+\item{prevDay}{Fecha del día previo a tomar. Default es día anterior. Ajustar a mano cuando hay feriados raros en medio}
 }
 \value{
 una lista con un df con los futuros y un gráfico con las implícitas
@@ -17,4 +19,5 @@ una lista con un df con los futuros y un gráfico con las implícitas
 \description{
 Trae la curva de Rofex desde BYMA (via PPI) y calcula implícitas
 Toma el spot de la web de MAE. Si se le informa uno en spt, toma ese.
+Toma también, via getRofexPosition(), la curva del día anterior para graficarla comparada.
 }

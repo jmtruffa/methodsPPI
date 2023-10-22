@@ -32,3 +32,7 @@ Si es Bonos, consulta a la API de PPI por el precio del bono en cuestión agreg�
 Si es CEDEAR o ACCIONES, consulta las tablas de ratiosCedear o ratiosADR que está en db:test  y, con los ratio de allí
 obtenidos, calcula el CCL:
 }
+\details{
+Ver también getRofexCCL() que trabaja sobre una serie histórica y complementa
+con valores obtenidos de la encuesta Rofex
+}

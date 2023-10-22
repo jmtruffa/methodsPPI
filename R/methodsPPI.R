@@ -267,10 +267,13 @@ getPPIPriceHistoryMultiple3 = function(token, ticker, type, from, to, settlement
       history = fromJSON(rawToChar(rPriceHistory$body))
       #history = do.call(rbind.data.frame, history) #Cambiaron la forma de devolver?
       history$date = as.Date(history$date)
+      print(ticker[i])
+      print(history)
       result = rbind(result, as_tibble(cbind(ticker = rep(ticker[i], length(history$date)), history)))
     }
   }
-  return(list(result, fail))
+  rofex = getPPICurrentRofex(spt = 350.01)
+return(list(result, fail))
 }
 
 getPPIPriceHistoryMultiple = function(token, ticker, type, from, to, settlement = "INMEDIATA") {
@@ -604,9 +607,11 @@ getPPIBook2 = function(ticker, type, token,settlement = "INMEDIATA") {
 #'
 #' Trae la curva de Rofex desde BYMA (via PPI) y calcula implícitas
 #' Toma el spot de la web de MAE. Si se le informa uno en spt, toma ese.
+#' Toma también, via getRofexPosition(), la curva del día anterior para graficarla comparada.
 #'
 #' @param spt Spot para usar. Overrides el de MAE. Si no se pone nada y MAE no lo tiene devuelve error.
 #' @param db Base donde va a buscar los feriados. Default es test.
+#' @param prevDay Fecha del día previo a tomar. Default es día anterior. Ajustar a mano cuando hay feriados raros en medio
 #'
 #' @return una lista con un df con los futuros y un gráfico con las implícitas
 getPPICurrentRofex = function(db = "", spt = NULL, prevDay = Sys.Date() - 1) {
@@ -614,6 +619,7 @@ getPPICurrentRofex = function(db = "", spt = NULL, prevDay = Sys.Date() - 1) {
   require(methodsPPI)
   require(dplyr)
   require(ggplot2)
+  require(rofex)
 
   #para el grafico
   require(scales)
@@ -643,8 +649,8 @@ getPPICurrentRofex = function(db = "", spt = NULL, prevDay = Sys.Date() - 1) {
     for (i in seq_along(serie)) {
       ret = append(ret, paste0("DLR/",meses[lubridate::month(as.Date(serie[i]))], substr(lubridate::year(as.Date(serie[i])), 3, 4)))
       finMes = lubridate::ceiling_date(as.Date(serie[i]), unit = "month") - 1
-      offset = ifelse(bizdays::is.bizday(finMes, cal = 'Argentina/test'), 0, -1)
-      finMesAjustado = bizdays::offset(finMes, offset, cal = 'Argentina/test')
+      offset = ifelse(bizdays::is.bizday(finMes, cal = 'tempCal'), 0, -1)
+      finMesAjustado = bizdays::offset(finMes, offset, cal = 'tempCal')
       end = append(end, finMesAjustado)
     }
     ret = tibble(futuro = ret, vto = end)
@@ -742,7 +748,7 @@ getPPICurrentRofex = function(db = "", spt = NULL, prevDay = Sys.Date() - 1) {
     scale_fill_manual(name = "", values = "darkgrey", label = "PASE") +
 
     labs(title = "Curva Futuros de Dólar",
-         subtitle = paste0('Línea punteada es t-1. En base a último operado: ',spot[1], '. Fecha: ', format(Sys.Date()-1, format = "%Y-%m-%d")),
+         subtitle = paste0('Línea punteada es t-1. En base a último operado: ',spot[1], '. Fecha: ', format(Sys.Date(), format = "%Y-%m-%d")),
          y = 'TNA y TEA',
          x = 'Vencimiento y valor de settlement',
          caption = "Elaboración propia en base a precios MatbaRofex")+

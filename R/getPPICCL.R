@@ -5,6 +5,8 @@
 #' Si es CEDEAR o ACCIONES, consulta las tablas de ratiosCedear o ratiosADR que está en db:test  y, con los ratio de allí
 #' obtenidos, calcula el CCL:
 #'
+#' Ver también getRofexCCL() que trabaja sobre una serie histórica y complementa
+#' con valores obtenidos de la encuesta Rofex
 #'
 #' @param from  Fecha desde. Default hoy
 #' @param to Fecha hasta. Default hoy
