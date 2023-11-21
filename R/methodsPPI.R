@@ -267,12 +267,10 @@ getPPIPriceHistoryMultiple3 = function(token, ticker, type, from, to, settlement
       history = fromJSON(rawToChar(rPriceHistory$body))
       #history = do.call(rbind.data.frame, history) #Cambiaron la forma de devolver?
       history$date = as.Date(history$date)
-      print(ticker[i])
-      print(history)
       result = rbind(result, as_tibble(cbind(ticker = rep(ticker[i], length(history$date)), history)))
     }
   }
-  rofex = getPPICurrentRofex(spt = 350.01)
+
 return(list(result, fail))
 }
 

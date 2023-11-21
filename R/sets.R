@@ -6,7 +6,7 @@ sets = function(set, db = "") {
     if (stringr::str_detect(Sys.info()['nodename'], "Air")) {
       db = "~/data/test.sqlite3"
     } else {
-      db = '~/data/test.sqlite3'
+      db = '/home/juant/data/test.sqlite3'
     }
   }
 
