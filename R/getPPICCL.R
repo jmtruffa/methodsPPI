@@ -16,7 +16,7 @@
 #'
 #' @return Un tibble con el ccl
 #'
-getPPICCL = function(from = Sys.Date(), to = Sys.Date() + 1, via = "AAPL", type = "CEDEARS", settle = "T+2") {
+getPPICCL = function(from = Sys.Date(), to = Sys.Date(), via = "AAPL", type = "CEDEARS", settle = "T+2") {
   require(methodsPPI)
   require(tidyquant)
   require(dplyr)
@@ -35,7 +35,7 @@ getPPICCL = function(from = Sys.Date(), to = Sys.Date() + 1, via = "AAPL", type 
       PPI = methodsPPI::getPPILogin2()
       prices = pmap_dfr(list(ticker = c(via, paste0(via,"C")),
                              token = PPI$token,
-                             type = type,
+                             type = c(type,type),
                              from = from,
                              to = to,
                              settlement = settle),

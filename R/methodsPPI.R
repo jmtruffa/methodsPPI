@@ -371,7 +371,7 @@ getPPIDLR = function(from = "2014-05-27", to = Sys.Date(), settlement = 't+0') {
                                            from = max(as.Date(from), as.Date("2020-09-15")),
                                            to = to,
                                            settlement = settlement)
-    resultMEP = resultMEP[[1]]
+    resultMEP = resultMEP[[1]][,-c(8:10)]
 
     #inicioResultMEP = max(resultMEP %>% head(n=1) %>% pull(date), "2020-09-15")
 
