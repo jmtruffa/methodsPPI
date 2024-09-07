@@ -226,6 +226,99 @@ getPPIPriceHistoryMultiple2 = function(token, ticker, type, from, to, settlement
   return(list(result, fail))
 }
 
+#' getPPIPrices
+#'
+#' Trae los precios de un ticker en un rango de fechas, y si PPI no lo tiene
+#' lo busca en la base de datos local.
+#' Esta es por ahora la más completa al 7-sep-2024 ya que es la primera que incluye
+#' poder buscar en base de datos cuando PPI no tiene los precios.
+#'
+#' @param token Token de PPI
+#' @param ticker Tickers a buscar. Acepta vector.
+#' @param type Tipo de activo. Siempre usar único tipo por vez. Acepta vector.
+#' @param from Fecha desde la que buscar
+#' @param to Fecha hasta la que buscar
+#' @param settlement Tipo de liquidación. Default es "INMEDIATA"
+#' @param ... Parámetros para dbExecuteQuery
+#'
+#' @return Lista con dos elementos: result y fail. Result es un tibble con los precios encontrados y fail los tickers que no se encontraron.
+#'
+getPPIPrices = function(token, ticker, type, from, to, settlement = "INMEDIATA", ...) {
+  require(tidyverse)
+  require(jsonlite)
+  require(httr2)
+  url = 'https://clientapi.portfoliopersonal.com/api/1.0/'
+  URLPriceHistory = "MarketData/Search"
+
+  result = tibble(
+    ticker = character(),
+    date = structure(rep.int(NA_real_, 0), class = "Date"),
+    price = numeric(),
+    volume = numeric(),
+    openingPrice = numeric(),
+    max = numeric(),
+    min = numeric()
+  )
+
+  fail = tibble(
+    ticker = character()
+  )
+
+  for (i in 1:length(ticker)) {
+    error = FALSE
+    tryCatch(
+      {
+        rPriceHistory = request(paste0(url, URLPriceHistory)) %>%
+          req_headers(Authorization = token,
+                      AuthorizedClient = 'API-CLI',
+                      ClientKey = 'pp19CliApp12',
+                      `User-Agent` = "http://github.com/jmtruffa") %>%
+          req_url_query(ticker = ticker[i],
+                        type = type[i],
+                        dateFrom = from,
+                        dateTo = to,
+                        settlement = settlement) %>%
+          req_method("GET") %>%
+          req_perform
+      },
+      error = function(e) { error <<- TRUE; fail <<- fail %>% add_row(ticker = ticker[i]) }
+    )
+
+    if (!error) {
+      history = fromJSON(rawToChar(rPriceHistory$body))
+      history$date = as.Date(history$date)
+      result = rbind(result, as_tibble(cbind(ticker = rep(ticker[i], length(history$date)), history)))
+    }
+  }
+
+  # Buscar en la base de datos los tickers fallidos
+  if (nrow(fail) > 0) {
+    query = sprintf("
+      SELECT *
+      FROM historical_prices
+      WHERE ticker IN (%s)
+        AND date BETWEEN '%s' AND '%s'
+    ", paste0("'", fail$ticker, "'", collapse = ", "),
+                    from, to)
+
+    # Le dejamos la elipsis para que le pasen parámetros de server ) "local", "medina" o "aws", server, host, db y port.
+    historical_data = dbExecuteQuery(query = query, ...)
+
+
+    if (nrow(historical_data) > 0) {
+      historical_data = rename(historical_data, price = close)
+      # Agregar los datos históricos al result
+      result = result %>% bind_rows(historical_data)
+
+      # Filtrar los tickers encontrados de fail
+      found_tickers = unique(historical_data$ticker)
+      fail = fail %>% filter(!ticker %in% found_tickers)
+    }
+  }
+
+  return(list(result, fail))
+}
+
 getPPIPriceHistoryMultiple3 = function(token, ticker, type, from, to, settlement = "INMEDIATA") {
   url = 'https://clientapi.portfoliopersonal.com/api/1.0/'
   URLPriceHistory = "MarketData/Search"
