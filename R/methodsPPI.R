@@ -403,6 +403,15 @@ getPPIPriceHistoryMultiple = function(token, ticker, type, from, to, settlement 
   result
 }
 
+#' getPPIDLR
+#' Trae valores de dólar de PPI
+#' @title Devuelve el histórico del precio del dolar MEP y CCL y el gráfico.
+#' @description Devuelve el histórico del precio del dolar MEP y CCL y el gráfico. Lo calcula con GD30 y AL30 desde septiembre 2020. Si se pide fecha previa, lo construye con AY24. La fecha más atrás que posee es 2014-05-27
+#' @param from Fecha desde la que buscar. Default es 2014-05-27
+#' @param to Fecha hasta la que buscar. Default es Sys.Date()
+#' @param settlement Tipo de liquidación. Default es "t+0"
+#' @return Un tibble con los valores de dólar
+#' @example getPPIDLR(from = "2014-05-27", to = Sys.Date())
 getPPIDLR = function(from = "2014-05-27", to = Sys.Date(), settlement = 't+0') {
   require(tidyverse)
   require(scales)
@@ -487,39 +496,39 @@ getPPIDLR = function(from = "2014-05-27", to = Sys.Date(), settlement = 't+0') {
     cbPalette <- c("#939599" , "#404042", "#9CD6F9", "#7ACAFA", "#4CAAE2", "#4CAAE2", "#235DBC", "#1C4993", "#14366D", "#0C1F3E", "#C6D6EE",
                    "#CAD1DC", "#ACB0B8", "#757679")
 
-    g = resultMEP %>%
-      select(ticker, date, price) %>%
-      pivot_wider(names_from =  ticker, values_from = price) %>%
-      mutate(
-        mepAL = AL30 / AL30D,
-        mepGD = GD30 / GD30D,
-        cclGD = GD30 / GD30C
-      ) %>%
-      select(-AL30, -GD30, -AL30D, -GD30D, -GD30C) %>%
-      #drop_na() %>%
-      pivot_longer(!date) %>%
-      rename(DLR = name) %>%
-      ggplot(aes(x=date, y=value, color = DLR )) +
-      geom_line(size = 0.6) +
-      scale_y_continuous(breaks = breaks_extended(16), sec.axis = dup_axis()) +
-      labs(title = "Evolución MEP y CCL via GD30 y AL30",
-           subtitle = "t+0. Último operado",
-           x='Fecha',
-           y='Pesos',
-           caption = 'Elaboración propia en base a datos de mercado (BYMA)') +
-      theme_tq() +
-      annotate("text", x = Sys.Date() - 15, y=255, label = paste0("CCL: ", round(last(tiposCambio$cclGD), 2)), size = 3.5) +
-      annotate("text", x = Sys.Date() - 15, y=250, label = paste0("MEP AL: ", round(last(tiposCambio$mepAL), 2)), size = 3.5) +
-      annotate("text", x = Sys.Date() - 15, y=245, label = paste0("MEP GD: ", round(last(tiposCambio$mepGD), 2)), size = 3.5) +
-      annotate("text", x = Sys.Date() - 15, y=240, label = paste0("Canje GD: ", round(last(tiposCambio$Canje) * 100, 2), "%"), size = 3.5) +
-      theme( # remove the vertical grid lines
-        panel.grid.major.x = element_blank() ,
-        # explicitly set the horizontal lines (or they will disappear too)
-        #panel.grid.major.y = element_line( size=.1, color="black" ) ) +
-        panel.grid.major.y = element_blank()) +
-      scale_color_manual(name = "", values = cbPalette, labels = c("CCL GD30", "MEP AL30", "MEP GD30"))
+    # g = resultMEP %>%
+    #   select(ticker, date, price) %>%
+    #   pivot_wider(names_from =  ticker, values_from = price) %>%
+    #   mutate(
+    #     mepAL = AL30 / AL30D,
+    #     mepGD = GD30 / GD30D,
+    #     cclGD = GD30 / GD30C
+    #   ) %>%
+    #   select(-AL30, -GD30, -AL30D, -GD30D, -GD30C) %>%
+    #   #drop_na() %>%
+    #   pivot_longer(!date) %>%
+    #   rename(DLR = name) %>%
+    #   ggplot(aes(x=date, y=value, color = DLR )) +
+    #   geom_line(size = 0.6) +
+    #   scale_y_continuous(breaks = breaks_extended(16), sec.axis = dup_axis()) +
+    #   labs(title = "Evolución MEP y CCL via GD30 y AL30",
+    #        subtitle = "t+0. Último operado",
+    #        x='Fecha',
+    #        y='Pesos',
+    #        caption = 'Elaboración propia en base a datos de mercado (BYMA)') +
+    #   theme_tq() +
+    #   annotate("text", x = Sys.Date() - 15, y=255, label = paste0("CCL: ", round(last(tiposCambio$cclGD), 2)), size = 3.5) +
+    #   annotate("text", x = Sys.Date() - 15, y=250, label = paste0("MEP AL: ", round(last(tiposCambio$mepAL), 2)), size = 3.5) +
+    #   annotate("text", x = Sys.Date() - 15, y=245, label = paste0("MEP GD: ", round(last(tiposCambio$mepGD), 2)), size = 3.5) +
+    #   annotate("text", x = Sys.Date() - 15, y=240, label = paste0("Canje GD: ", round(last(tiposCambio$Canje) * 100, 2), "%"), size = 3.5) +
+    #   theme( # remove the vertical grid lines
+    #     panel.grid.major.x = element_blank() ,
+    #     # explicitly set the horizontal lines (or they will disappear too)
+    #     #panel.grid.major.y = element_line( size=.1, color="black" ) ) +
+    #     panel.grid.major.y = element_blank()) +
+    #   scale_color_manual(name = "", values = cbPalette, labels = c("CCL GD30", "MEP AL30", "MEP GD30"))
 
-    return(list(tiposCambio, g))
+    return(tiposCambio)
 
   } else {
       stop("Fecha debe ser mayor a 2014-05-26")
