@@ -279,15 +279,27 @@ getPPIPrices = function(token, ticker, type, from, to, settlement = "INMEDIATA",
                         dateTo = to,
                         settlement = settlement) %>%
           req_method("GET") %>%
-          req_perform
+          #req_dry_run()
+          req_perform()
       },
       error = function(e) { error <<- TRUE; fail <<- fail %>% add_row(ticker = ticker[i]) }
     )
 
     if (!error) {
-      history = fromJSON(rawToChar(rPriceHistory$body))
-      history$date = as.Date(history$date)
-      result = rbind(result, as_tibble(cbind(ticker = rep(ticker[i], length(history$date)), history)))
+      # A veces la API de PPI devuelve 200 pero el body está vacío. Vamos a controlar por body vacío
+      if (rawToChar(rPriceHistory$body) == "[]") {
+        error = TRUE
+        fail = fail %>% add_row(ticker = ticker[i])
+      } else {
+        history = fromJSON(rawToChar(rPriceHistory$body))
+        history$date = as.Date(history$date)
+        result = rbind(result, as_tibble(cbind(ticker = rep(ticker[i], length(history$date)), history)))
+      }
+      # history = fromJSON(rawToChar(rPriceHistory$body))
+      # history$date = as.Date(history$date)
+      # print(history)
+      # result = rbind(result, as_tibble(cbind(ticker = rep(ticker[i], length(history$date)), history)))
+      # print(result)
     }
   }
 
