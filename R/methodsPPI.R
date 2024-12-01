@@ -1,27 +1,107 @@
-getPPILogin = function() { ### funcion deprecada cuando cambiaron la forma de Login Nov-2022
+#' getPPILogin
+#'
+#' Ultima función de Login para PPI.
+#' No requiere parametros.
+#' Chequea si existe un objecto llamado token en el global environment.
+#' Si no existe procesa uno nuevo.
+#' Si existe, toma su expiration y verifica si venció.
+#' Si venció solicita uno nuevo. Si no venció indica que aún está vigente.
+#'
+#' De esta manera se minimiza la cantidad de veces que se pide un token
+#' y evitamos una sobrecarga a la API de PPI.
+#'
+#'
+#' @return Devuelve una lista con los elementos: token, refreshToken, expiration.
+#' @example token = getPPILogin()
+getPPILogin <- function() {
 
-  require(tidyverse)
-  require(jsonlite)
-  require(httr2)
+  # Helper function to parse API response
+  parse_response <- function(response) {
+    body <- fromJSON(rawToChar(response$body))
+    list(
+      token = paste0("Bearer ", body$accessToken),
+      refreshToken = body$refreshToken,
+      expiration = body$expirationDate
+    )
+  }
 
-  url = 'https://clientapi.portfoliopersonal.com/api/1.0/'
-  urlLogin = 'Account/Login'
-  bodyLogin = list(user = Sys.getenv("PPI_API_KEY"),
-                   password = Sys.getenv("PPI_SECRET_KEY"))
+  # Check if `token` exists in the global environment
+  if (!exists("token", envir = .GlobalEnv)) {
+    message("Token does not exist. Requesting a new one...")
 
-  rLogin = request(paste0(url, urlLogin)) %>%
-    req_headers(AuthorizedClient = 'API-CLI',
-                ClientKey = 'pp19CliApp12',
-                `User-Agent` = "http://github.com/jmtruffa") %>%
-    req_body_json(bodyLogin) %>%
-    req_method("POST") %>%
-    req_perform()
+    # Request a new token
+    url_base <- "https://clientapi.portfoliopersonal.com/api/1.0/"
+    url_login <- paste0(url_base, "Account/LoginApi")
+    r_login <- request(url_login) %>%
+      req_headers(
+        AuthorizedClient = "API-CLI",
+        ClientKey = "pp19CliApp12",
+        ApiKey = Sys.getenv("PPI_API_KEY"),
+        ApiSecret = Sys.getenv("PPI_SECRET_KEY"),
+        `User-Agent` = "http://github.com/jmtruffa"
+      ) %>%
+      req_body_json("") %>%
+      req_method("POST") %>%
+      req_perform()
 
-  token = paste0('Bearer ', fromJSON(rawToChar(rLogin$body))$accessToken)
-  refreshToken = fromJSON(rawToChar(rLogin$body))$refreshToken
-  returnValue = list(token = token,
-                     refreshToken = refreshToken)
-  returnValue
+    # Parse response and save the token in the global environment
+    token <<- parse_response(r_login)
+    return(token)
+  }
+
+  # Validate the existing token
+  message("Token exists. Checking validity...")
+  token_expiration_fixed <- sub("([+-]\\d{2}):(\\d{2})$", "\\1\\2", token$expiration)
+  token_expiration_posix <- as.POSIXct(token_expiration_fixed, format = "%Y-%m-%dT%H:%M:%S%z")
+  current_time <- Sys.time()
+
+  if (!is.na(token_expiration_posix) && current_time < token_expiration_posix) {
+    message("The token is still valid.")
+    return(token)
+  }
+
+  # Refresh or request a new token
+  if (!is.null(token$refreshToken)) {
+    message("Refreshing token...")
+    url_base <- "https://clientapi.portfoliopersonal.com/api/1.0/"
+    url_refresh <- paste0(url_base, "Account/RefreshToken")
+    r_refresh <- request(url_refresh) %>%
+      req_headers(
+        AuthorizedClient = "API-CLI",
+        ClientKey = "pp19CliApp12",
+        ApiKey = Sys.getenv("PPI_API_KEY"),
+        ApiSecret = Sys.getenv("PPI_SECRET_KEY"),
+        `User-Agent` = "http://github.com/jmtruffa"
+      ) %>%
+      req_url_query(refreshToken = token$refreshToken) %>%
+      req_method("POST") %>%
+      req_perform()
+
+    # Parse response and update the global token
+    token <<- parse_response(r_refresh)
+    return(token)
+  } else {
+    message("Refresh token is not available. Requesting a new one...")
+
+    # Request a new token
+    url_base <- "https://clientapi.portfoliopersonal.com/api/1.0/"
+    url_login <- paste0(url_base, "Account/LoginApi")
+    r_login <- request(url_login) %>%
+      req_headers(
+        AuthorizedClient = "API-CLI",
+        ClientKey = "pp19CliApp12",
+        ApiKey = Sys.getenv("PPI_API_KEY"),
+        ApiSecret = Sys.getenv("PPI_SECRET_KEY"),
+        `User-Agent` = "http://github.com/jmtruffa"
+      ) %>%
+      req_body_json("") %>%
+      req_method("POST") %>%
+      req_perform()
+
+    # Parse response and update the global token
+    token <<- parse_response(r_login)
+    return(token)
+  }
 }
 
 refreshPPIToken = function(token, refreshToken) {
@@ -279,7 +359,6 @@ getPPIPrices = function(token, ticker, type, from, to, settlement = "INMEDIATA",
                         dateTo = to,
                         settlement = settlement) %>%
           req_method("GET") %>%
-          #req_dry_run()
           req_perform()
       },
       error = function(e) { error <<- TRUE; fail <<- fail %>% add_row(ticker = ticker[i]) }
