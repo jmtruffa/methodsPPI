@@ -11,12 +11,14 @@
 #' y evitamos una sobrecarga a la API de PPI.
 #'
 #'
-#' @return Devuelve una lista con los elementos: token, refreshToken, expiration.
-#' @example token = getPPILogin()
-getPPILogin <- function() {
-
+#' @return solo toca el objeto token en el global environment
+#' @example getPPILogin()
+getPPILogin = function() {
+  require(tidyverse)
+  require(jsonlite)
+  require(httr2)
   # Helper function to parse API response
-  parse_response <- function(response) {
+  parse_response = function(response) {
     body <- fromJSON(rawToChar(response$body))
     list(
       token = paste0("Bearer ", body$accessToken),
@@ -25,16 +27,14 @@ getPPILogin <- function() {
     )
   }
 
-  # Check if `token` exists in the global environment
-  if (!exists("token", envir = .GlobalEnv)) {
-    message("Token does not exist. Requesting a new one...")
-
+  new_token = function() {
     # Request a new token
     url_base <- "https://clientapi.portfoliopersonal.com/api/1.0/"
     url_login <- paste0(url_base, "Account/LoginApi")
     r_login <- request(url_login) %>%
       req_headers(
-        AuthorizedClient = "API-CLI",
+        AuthorizedClient = "API_CLI_REST",
+        #AuthorizedClient = "API-CLI",
         ClientKey = "pp19CliApp12",
         ApiKey = Sys.getenv("PPI_API_KEY"),
         ApiSecret = Sys.getenv("PPI_SECRET_KEY"),
@@ -46,7 +46,15 @@ getPPILogin <- function() {
 
     # Parse response and save the token in the global environment
     token <<- parse_response(r_login)
-    return(token)
+  }
+
+  # Check if `token` exists in the global environment
+  if (!exists("token", envir = .GlobalEnv)) {
+    message("Token does not exist. Requesting a new one...")
+
+    # Request a new token
+    new_token()
+    return("Token created.")
   }
 
   # Validate the existing token
@@ -56,8 +64,7 @@ getPPILogin <- function() {
   current_time <- Sys.time()
 
   if (!is.na(token_expiration_posix) && current_time < token_expiration_posix) {
-    message("The token is still valid.")
-    return(token)
+    return("Token is still valid.")
   }
 
   # Refresh or request a new token
@@ -65,114 +72,42 @@ getPPILogin <- function() {
     message("Refreshing token...")
     url_base <- "https://clientapi.portfoliopersonal.com/api/1.0/"
     url_refresh <- paste0(url_base, "Account/RefreshToken")
-    r_refresh <- request(url_refresh) %>%
-      req_headers(
-        AuthorizedClient = "API-CLI",
-        ClientKey = "pp19CliApp12",
-        ApiKey = Sys.getenv("PPI_API_KEY"),
-        ApiSecret = Sys.getenv("PPI_SECRET_KEY"),
-        `User-Agent` = "http://github.com/jmtruffa"
-      ) %>%
-      req_url_query(refreshToken = token$refreshToken) %>%
-      req_method("POST") %>%
-      req_perform()
+    tryCatch(
+      expr = {
+        r_refresh <- request(url_refresh) %>%
+          req_headers(
+            Authorization = paste0("Bearer no controlan que hay aca"),
+            AuthorizedClient = "API_CLI_REST",
+            ClientKey = "pp19CliApp12",
+            `User-Agent` = "http://github.com/jmtruffa"
+          ) %>%
+          req_body_raw(
+            paste0('{"refreshToken": "', token$refreshToken, '"}'),
+            type = "application/json"
+          ) %>%
+          req_method("POST") %>%
+          req_perform()
 
-    # Parse response and update the global token
-    token <<- parse_response(r_refresh)
-    return(token)
+        # Si no hay error, parseamos la respuesta
+        token <<- parse_response(r_refresh)
+      },
+      error = function(e) {
+        # Si ocurre un error, se llama a new_token()
+        message("Error refreshing token. Requesting a new one...")
+        new_token()
+      }
+    )
+    return("Token refreshed.")
   } else {
     message("Refresh token is not available. Requesting a new one...")
 
     # Request a new token
-    url_base <- "https://clientapi.portfoliopersonal.com/api/1.0/"
-    url_login <- paste0(url_base, "Account/LoginApi")
-    r_login <- request(url_login) %>%
-      req_headers(
-        AuthorizedClient = "API-CLI",
-        ClientKey = "pp19CliApp12",
-        ApiKey = Sys.getenv("PPI_API_KEY"),
-        ApiSecret = Sys.getenv("PPI_SECRET_KEY"),
-        `User-Agent` = "http://github.com/jmtruffa"
-      ) %>%
-      req_body_json("") %>%
-      req_method("POST") %>%
-      req_perform()
-
-    # Parse response and update the global token
-    token <<- parse_response(r_login)
-    return(token)
+    new_token()
+    return("Pedido token nuevo.")
   }
 }
 
-refreshPPIToken = function(token, refreshToken) {
-  require(tidyverse)
-  require(jsonlite)
-  require(httr2)
-  url = 'https://clientapi.portfoliopersonal.com/api/1.0/'
-  urlRefreshToken = 'Account/RefreshToken'
-  bodyRefreshToken = list(refreshToken = refreshToken)
-  rRefreshToken = request(paste0(url, urlRefreshToken)) %>%
-    req_headers(AuthorizedClient = 'API-CLI',
-                ClientKey = 'pp19CliApp12',
-                `User-Agent` = "http://github.com/jmtruffa",
-                Authorization = token) %>%
-    req_body_json(bodyRefreshToken) %>%
-    req_method("POST") %>%
-    req_perform()
-  token = paste0('Bearer ', fromJSON(rawToChar(rRefreshToken$body))$accessToken)
-  refreshToken = fromJSON(rawToChar(rRefreshToken$body))$refreshToken
-  returnValue = list(token = token,
-                     refreshToken = refreshToken)
-  returnValue
-}
 
-getPPILogin2 = function() {
-
-  require(tidyverse)
-  require(jsonlite)
-  require(httr2)
-
-  url = 'https://clientapi.portfoliopersonal.com/api/1.0/'
-  urlLogin = 'Account/LoginApi'
-
-  rLogin = request(paste0(url, urlLogin)) %>%
-    req_headers(AuthorizedClient = 'API-CLI',
-                ClientKey = 'pp19CliApp12',
-                ApiKey = Sys.getenv("PPI_API_KEY"),
-                ApiSecret = Sys.getenv("PPI_SECRET_KEY"),
-                `User-Agent` = "http://github.com/jmtruffa") %>%
-    req_body_json("") %>% #No lleva nada ahora en el body. Antes llevaba user y pass
-    req_method("POST") %>%
-    req_perform()
-
-  token = paste0('Bearer ', fromJSON(rawToChar(rLogin$body))$accessToken)
-  refreshToken = fromJSON(rawToChar(rLogin$body))$refreshToken
-  returnValue = list(token = token,
-                     refreshToken = refreshToken)
-  returnValue
-}
-
-refreshPPIToken = function(token, refreshToken) {
-  require(tidyverse)
-  require(jsonlite)
-  require(httr2)
-  url = 'https://clientapi.portfoliopersonal.com/api/1.0/'
-  urlRefreshToken = 'Account/RefreshToken'
-  bodyRefreshToken = list(refreshToken = refreshToken)
-  rRefreshToken = request(paste0(url, urlRefreshToken)) %>%
-    req_headers(AuthorizedClient = 'API-CLI',
-                ClientKey = 'pp19CliApp12',
-                `User-Agent` = "http://github.com/jmtruffa",
-                Authorization = token) %>%
-    req_body_json(bodyRefreshToken) %>%
-    req_method("POST") %>%
-    req_perform()
-  token = paste0('Bearer ', fromJSON(rawToChar(rRefreshToken$body))$accessToken)
-  refreshToken = fromJSON(rawToChar(rRefreshToken$body))$refreshToken
-  returnValue = list(token = token,
-                     refreshToken = refreshToken)
-  returnValue
-}
 
 getPPIPrice = function(token, ticker, type, settlement = "INMEDIATA") {
   require(tidyverse)
@@ -350,7 +285,7 @@ getPPIPrices = function(token, ticker, type, from, to, settlement = "INMEDIATA",
       {
         rPriceHistory = request(paste0(url, URLPriceHistory)) %>%
           req_headers(Authorization = token,
-                      AuthorizedClient = 'API-CLI',
+                      AuthorizedClient = 'API_CLI_REST',
                       ClientKey = 'pp19CliApp12',
                       `User-Agent` = "http://github.com/jmtruffa") %>%
           req_url_query(ticker = ticker[i],
@@ -434,7 +369,7 @@ getPPIPriceHistoryMultiple3 = function(token, ticker, type, from, to, settlement
       {
         rPriceHistory = request(paste0(url, URLPriceHistory)) %>%
           req_headers(Authorization = token,
-                      AuthorizedClient = 'API-CLI',
+                      AuthorizedClient = 'API_CLI_REST',
                       ClientKey = 'pp19CliApp12',
                       `User-Agent` = "http://github.com/jmtruffa") %>%
           req_url_query(ticker = ticker[i],
@@ -554,12 +489,13 @@ getPPIDLR = function(from = "2014-05-27", to = Sys.Date(), settlement = 't+0') {
         juntar = TRUE
       }
 
-    PPI = getPPILogin2()
+    getPPILogin()
     settlement = ifelse(settlement == 't+0', "INMEDIATA", "A-48HS")
     tickers = c('AL30', 'GD30C', 'AL30D', 'GD30', 'GD30D')
     type = rep('BONOS', length(tickers))
 
-    resultMEP = getPPIPriceHistoryMultiple3(PPI$token, ticker = tickers,
+    resultMEP = getPPIPriceHistoryMultiple3(token$token,
+                                            ticker = tickers,
                                            type = type,
                                            from = max(as.Date(from), as.Date("2020-09-15")),
                                            to = to,
@@ -587,38 +523,6 @@ getPPIDLR = function(from = "2014-05-27", to = Sys.Date(), settlement = 't+0') {
     cbPalette <- c("#939599" , "#404042", "#9CD6F9", "#7ACAFA", "#4CAAE2", "#4CAAE2", "#235DBC", "#1C4993", "#14366D", "#0C1F3E", "#C6D6EE",
                    "#CAD1DC", "#ACB0B8", "#757679")
 
-    # g = resultMEP %>%
-    #   select(ticker, date, price) %>%
-    #   pivot_wider(names_from =  ticker, values_from = price) %>%
-    #   mutate(
-    #     mepAL = AL30 / AL30D,
-    #     mepGD = GD30 / GD30D,
-    #     cclGD = GD30 / GD30C
-    #   ) %>%
-    #   select(-AL30, -GD30, -AL30D, -GD30D, -GD30C) %>%
-    #   #drop_na() %>%
-    #   pivot_longer(!date) %>%
-    #   rename(DLR = name) %>%
-    #   ggplot(aes(x=date, y=value, color = DLR )) +
-    #   geom_line(size = 0.6) +
-    #   scale_y_continuous(breaks = breaks_extended(16), sec.axis = dup_axis()) +
-    #   labs(title = "Evolución MEP y CCL via GD30 y AL30",
-    #        subtitle = "t+0. Último operado",
-    #        x='Fecha',
-    #        y='Pesos',
-    #        caption = 'Elaboración propia en base a datos de mercado (BYMA)') +
-    #   theme_tq() +
-    #   annotate("text", x = Sys.Date() - 15, y=255, label = paste0("CCL: ", round(last(tiposCambio$cclGD), 2)), size = 3.5) +
-    #   annotate("text", x = Sys.Date() - 15, y=250, label = paste0("MEP AL: ", round(last(tiposCambio$mepAL), 2)), size = 3.5) +
-    #   annotate("text", x = Sys.Date() - 15, y=245, label = paste0("MEP GD: ", round(last(tiposCambio$mepGD), 2)), size = 3.5) +
-    #   annotate("text", x = Sys.Date() - 15, y=240, label = paste0("Canje GD: ", round(last(tiposCambio$Canje) * 100, 2), "%"), size = 3.5) +
-    #   theme( # remove the vertical grid lines
-    #     panel.grid.major.x = element_blank() ,
-    #     # explicitly set the horizontal lines (or they will disappear too)
-    #     #panel.grid.major.y = element_line( size=.1, color="black" ) ) +
-    #     panel.grid.major.y = element_blank()) +
-    #   scale_color_manual(name = "", values = cbPalette, labels = c("CCL GD30", "MEP AL30", "MEP GD30"))
-
     return(tiposCambio)
 
   } else {
@@ -630,7 +534,7 @@ getPPIDLR2 = function(ticker = "GD30", type = "BONOS") {
   require(methodsPPI)
   require(lubridate)
 
-  PPI = getPPILogin2()
+  getPPILogin()
 
   tickers = c(ticker, paste0(ticker,"C"), paste0(ticker,"D"))
 
@@ -657,7 +561,7 @@ getPPIDLR2 = function(ticker = "GD30", type = "BONOS") {
   for (i in 1:length(tickers)) {
     for (k in 1:length(settlement)) {
 
-      temp = getPPIBook(PPI$token, ticker = tickers[i], type = type, settlement = settlement[k])
+      temp = getPPIBook(token$token, ticker = tickers[i], type = type, settlement = settlement[k])
       result = rbind(result, as_tibble(cbind(temp,
                                              settlement = rep(settlement[k], length(temp$date))
       )))
@@ -685,7 +589,7 @@ getPPIBook = function(token, ticker, type, settlement = "INMEDIATA") {
 
   rBook = request(paste0(url, urlMarketData)) %>%
     req_headers(Authorization = token,
-                AuthorizedClient = 'API-CLI',
+                AuthorizedClient = 'API_CLI_REST',
                 ClientKey = 'pp19CliApp12',
                 `User-Agent` = "http://github.com/jmtruffa"
     ) %>%
@@ -753,7 +657,7 @@ getPPIBook2 = function(ticker, type, token,settlement = "INMEDIATA") {
     {
       rBook = request(paste0(url, urlMarketData)) %>%
         req_headers(Authorization = token,
-                    AuthorizedClient = 'API-CLI',
+                    AuthorizedClient = 'API_CLI_REST',
                     ClientKey = 'pp19CliApp12',
                     `User-Agent` = "http://github.com/jmtruffa"
         ) %>%
@@ -850,11 +754,11 @@ getPPICurrentRofex = function(db = "", spt = NULL, prevDay = Sys.Date() - 1) {
   #serie = seq.Date(from = Sys.Date(), length.out = 12, by = "months")
   tira = secuencia(seq.Date(from = as.Date(lubridate::floor_date(Sys.Date(), unit = "month")), length.out = 12, by = "months"))
 
-  PPI = getPPILogin2()
+  getPPILogin()
 
   fut = NULL
   for (vto in tira$futuro) {
-    fut = append(fut, getPPIPrice(token = PPI$token,
+    fut = append(fut, getPPIPrice(token = token$token,
                                   ticker = vto,
                                   type = "FUTUROS",
                                   settlement = 'INMEDIATA')$price)
@@ -971,7 +875,7 @@ getPPIFullBook = function (instrumentos, settlement = "A-48HS", endpoint = "yiel
 
   tmpCalendar <- create.calendar('tmpCalendar', holidays = getFeriados(), weekdays = c('saturday','sunday'))
 
-  PPI = getPPILogin2()
+  getPPILogin()
   settlement = settlement
 
   # fee = tibble(
@@ -989,7 +893,7 @@ getPPIFullBook = function (instrumentos, settlement = "A-48HS", endpoint = "yiel
     list(
       tickers$ticker,
       tickers$type,
-      PPI$token,
+      token$token,
       settlement
     ),
     getPPIBook2
