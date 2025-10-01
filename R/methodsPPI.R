@@ -491,7 +491,7 @@ getPPIDLR = function(from = "2014-05-27", to = Sys.Date(), settlement = 't+0') {
 
     getPPILogin()
     settlement = ifelse(settlement == 't+0', "INMEDIATA", "A-48HS")
-    tickers = c('AL30', 'GD30C', 'AL30D', 'GD30', 'GD30D')
+    tickers = c('AL30', 'AL30C', 'GD30C', 'AL30D', 'GD30', 'GD30D')
     type = rep('BONOS', length(tickers))
 
     resultMEP = getPPIPriceHistoryMultiple3(token$token,
@@ -515,10 +515,11 @@ getPPIDLR = function(from = "2014-05-27", to = Sys.Date(), settlement = 't+0') {
       mutate(
         mepAL = AL30 / AL30D,
         mepGD = GD30 / GD30D,
+        cclAL = AL30 / AL30C,
         cclGD = GD30 / GD30C,
-        Canje = cclGD / mepGD - 1
+        Canje = cclAL / mepAL - 1
       ) %>%
-      select(-c(AL30, GD30, GD30C, AL30D, GD30D))
+      select(-c(AL30, GD30, GD30C, AL30D, GD30D, AL30C))
 
     cbPalette <- c("#939599" , "#404042", "#9CD6F9", "#7ACAFA", "#4CAAE2", "#4CAAE2", "#235DBC", "#1C4993", "#14366D", "#0C1F3E", "#C6D6EE",
                    "#CAD1DC", "#ACB0B8", "#757679")
