@@ -23,3 +23,6 @@ Devuelve el histórico del precio del dolar MEP y CCL y el gráfico. Lo calcula 
 getPPIDLR
 Trae valores de dólar de PPI
 }
+\examples{
+getPPIDLR(from = "2014-05-27", to = Sys.Date())
+}

@@ -12,7 +12,7 @@
 #'
 #'
 #' @return solo toca el objeto token en el global environment
-#' @example getPPILogin()
+#' @examples getPPILogin()
 getPPILogin = function() {
   require(tidyverse)
   require(jsonlite)
@@ -437,7 +437,7 @@ getPPIPriceHistoryMultiple = function(token, ticker, type, from, to, settlement 
 #' @param to Fecha hasta la que buscar. Default es Sys.Date()
 #' @param settlement Tipo de liquidación. Default es "t+0"
 #' @return Un tibble con los valores de dólar
-#' @example getPPIDLR(from = "2014-05-27", to = Sys.Date())
+#' @examples getPPIDLR(from = "2014-05-27", to = Sys.Date())
 getPPIDLR = function(from = "2014-05-27", to = Sys.Date(), settlement = 't+0') {
   require(tidyverse)
   require(scales)
