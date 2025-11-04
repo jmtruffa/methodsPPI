@@ -447,47 +447,25 @@ getPPIDLR = function(from = "2014-05-27", to = Sys.Date(), settlement = 't+0') {
   require(methodsPPI)
 
   if (from >= "2014-05-27") {
-      juntar = FALSE
-      if (from < "2020-09-15") {
-        tickersBonosOld = c('AY24', 'AY24D', 'AY24C')
-        fileDirectory = '/Users/Juan/GoogleDrive/Mi unidad/analisis financieros/data/'
-
-        for (i in seq_along(tickersBonosOld)){
-          if (!file.exists(paste0(fileDirectory, tickersBonosOld[i], '.csv'))) {
-            download.file(paste('http://clasico.rava.com/empresas/precioshistoricos.php?e=',tickersBonosOld[i],'&csv=1', sep=''),
-                          paste0(fileDirectory,tickersBonosOld[i], '.csv'), mode = 'wb')
-          }
-        }
-        bonosOld = tibble(
-          ticker = character(),
-          fecha = Date(),
-          apertura = double(),
-          maximo = double(),
-          minimo = double(),
-          cierre =double(),
-          volumen = double(),
-          openint = double()
+    juntar = FALSE
+    if (from < "2020-09-15") {
+      # Consultar precios históricos de bonos AY24, AY24D y AY24C
+      query = "
+      select * from historical_prices hp where ticker in ('AY24', 'AY24D', 'AY24C')
+      "
+      bonosOld = dbExecuteQuery(query = query, server = server, port = port) %>%
+      relocate(ticker, date, price = close, volume, openingPrice, max, min) %>%
+      filter(date >= from, date <= "2020-09-14") %>%
+      #filter(date >= "2014-05-27") %>%
+      mutate(
+        ticker = case_when(
+          ticker == "AY24" ~ "GD30",
+          ticker == "AY24D" ~ "GD30D",
+          ticker == "AY24C" ~ "GD30C"
         )
-        for (i in seq_along(tickersBonosOld)){
-          temp = read_csv(paste0(fileDirectory, tickersBonosOld[i], '.csv'))
-          temp$ticker = tickersBonosOld[i]
-          bonosOld = rbind(bonosOld, temp)
-        }
-
-        bonosOld = bonosOld %>%
-          relocate(ticker, date = fecha, price = cierre, volume = volumen, openingPrice = apertura, max = maximo, min = minimo) %>%
-          select(-openint) %>%
-          filter(date >= from, date <= "2020-09-14") %>%
-          #filter(date >= "2014-05-27") %>%
-          mutate(
-            ticker = case_when(
-              ticker == "AY24" ~ "GD30",
-              ticker == "AY24D" ~ "GD30D",
-              ticker == "AY24C" ~ "GD30C"
-            )
-          )
-        juntar = TRUE
-      }
+      )
+      juntar = TRUE
+    }
 
     getPPILogin()
     settlement = ifelse(settlement == 't+0', "INMEDIATA", "A-48HS")
